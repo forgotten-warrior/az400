@@ -6,10 +6,18 @@ variables:
   vmImageName: 'windows-latest'
   devBranchName: 'develop'
 
+schedules:
+  - cron: '40 22 * * *'
+    displayName: Deploy every day at 22:45
+    branches:
+      includes:
+        - develop
+    always: false
+
 stages:
 - stage: 'Build'
   displayName: 'Build the web application'
-  jobs: 
+  jobs:
   - job: 'Build'
     displayName: 'Build job'
     pool:
@@ -50,7 +58,6 @@ stages:
 
     - publish: '$(Build.ArtifactStagingDirectory)'
       artifact: drop
-
 - stage: 'Dev'
   displayName: 'Deploy to the dev environment'
   dependsOn: Build
@@ -78,4 +85,27 @@ stages:
             inputs:
               azureSubscription: 'tltaz400 - Azure'
               appName: '$(WebAppNameDev)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+- stage: 'Test'
+  displayName: 'Deploy to the test environment'
+  dependsOn: Dev
+  #condition: eq(variables['Build.Reason'], 'Schedule')
+  jobs:
+  - deployment: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    environment: test
+    variables:
+    - group: 'Release'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'tltaz400 - Azure'
+              appName: '$(WebAppNameQa)'
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
